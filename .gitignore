@@ -1,0 +1,15 @@
+# Rahasia dan berkas yang bisa dibuat ulang
+server.key
+server.crt
+.env
+
+# Berkas sementara
+data/order_*.txt
+data/run.log
+*.log
+tmp/
+
+# Lingkungan Python dan artefak Go
+venv/
+__pycache__/
+/app
