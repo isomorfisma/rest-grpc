@@ -1,0 +1,17 @@
+syntax = "proto3";
+package payload;
+option go_package = "example.com/payload/pb";
+
+message DataRecord {           // struktur field sesuai Tabel 3.2 draf
+  int32  id          = 1;
+  string name        = 2;
+  string description = 3;
+  double value       = 4;
+}
+
+message PayloadRequest  { string size_class = 1; }
+message PayloadResponse { repeated DataRecord records = 1; }
+
+service PayloadService {
+  rpc GetPayload (PayloadRequest) returns (PayloadResponse);
+}

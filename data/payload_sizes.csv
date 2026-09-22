@@ -1,0 +1,6 @@
+payload_class,records,json_bytes,protobuf_bytes
+xs,1,992,953
+sm,50,50044,48189
+md,500,501672,482361
+lg,1500,1505758,1447361
+xl,3000,3013406,2894861
