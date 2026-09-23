@@ -1,0 +1,71 @@
+x-layanan: &layanan
+  cpuset: "${SERVICE_CPUSET}"
+  volumes:
+    - ./config:/srv/config:ro
+    - ./server.crt:/srv/server.crt:ro
+    - ./server.key:/srv/server.key:ro
+  deploy:
+    resources:
+      limits: { cpus: "${CPUS}", memory: "${MEMORY}" }
+
+services:
+  rest-svc:
+    <<: *layanan
+    build: { context: ., args: { CMD: rest } }
+    container_name: rest-svc
+    environment:
+      SERVICE_NAME: rest
+      CONFIG_PATH: /srv/config/experiment.json
+      GOMAXPROCS: "1"
+      GOMEMLIMIT: "${GOMEMLIMIT}"
+    networks:
+      expnet: { ipv4_address: "${REST_IP}" }
+
+  grpc-svc:
+    <<: *layanan
+    build: { context: ., args: { CMD: grpc } }
+    container_name: grpc-svc
+    environment:
+      SERVICE_NAME: grpc
+      CONFIG_PATH: /srv/config/experiment.json
+      GOMAXPROCS: "1"
+      GOMEMLIMIT: "${GOMEMLIMIT}"
+    networks:
+      expnet: { ipv4_address: "${GRPC_IP}" }
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    cpuset: "${MONITOR_CPUSET}"
+    privileged: true
+    devices: ["/dev/kmsg"]
+    command: ["--docker_only=true", "--housekeeping_interval=5s"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports: ["8080:8080"]
+    networks: [expnet]
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    cpuset: "${MONITOR_CPUSET}"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports: ["9090:9090"]
+    networks: [expnet]
+
+networks:
+  expnet:
+    driver: bridge
+    driver_opts: { com.docker.network.bridge.name: "${BRIDGE}" }
+    ipam: { config: [ { subnet: "${SUBNET}" } ] }
+
+volumes:
+  promdata: {}
