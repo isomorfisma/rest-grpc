@@ -1,4 +1,4 @@
-"""raw/*.json (k6 & ghz) + cpu.csv + payload_sizes.csv → data/dataset[_suffix].csv (1 baris per run)"""
+"""raw/*.json (k6, untuk REST dan gRPC) + cpu.csv + payload_sizes.csv → data/dataset[_suffix].csv (1 baris per run)"""
 import glob
 import json
 import os
@@ -20,7 +20,7 @@ def dari_k6(j):
     return {k: j[k] for k in ("p50_ms", "p95_ms", "p99_ms", "mean_ms", "requests", "rps", "error_rate")}
 
 
-def dari_ghz(j):
+def dari_ghz(j):   # hanya untuk membaca arsip pilot lama yang diukur dengan ghz
     lat = {d["percentage"]: d["latency"] / 1e6 for d in j["latencyDistribution"]}   # ns → ms
     n = j["count"]
     ok = j.get("statusCodeDistribution", {}).get("OK", 0)

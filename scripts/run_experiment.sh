@@ -14,7 +14,7 @@ TIMEOUT=$(q '.experiment.timeout');    PAUSE=$(q '.experiment.pause_seconds')
 SEED=$(q '.experiment.seed');          GEN_CPUS=$(q '.resources.generator_cpuset')
 RAW=$(q '.output.raw_dir');            RUNLOG=$(q '.output.runlog')
 
-for alat in /usr/bin/time openssl taskset jq k6 ghz; do
+for alat in /usr/bin/time openssl taskset jq k6; do
   command -v "$alat" >/dev/null || { echo "Tidak ditemukan: $alat" >&2; exit 1; }
 done
 
@@ -29,31 +29,19 @@ mkdir -p "$RAW" "$(dirname "$RUNLOG")"
 info () { jq -r --arg n "$1" '.protocols[] | select(.name==$n) | '"$2" "$CFG_FILE"; }
 
 beban () {   # beban <protokol> <kelas> <conc> <durasi> <rep> [berkas-keluaran]
+  # Kedua protokol diukur dengan k6 (k6/http dan k6/net/grpc): model beban, kebijakan koneksi,
+  # dan skema keluaran identik. Skrip dipilih dari jenis protokol: loadtest/k6_<kind>.js
   local p=$1 s=$2 c=$3 d=$4 r=$5 out=${6:-}
-  local kind ip port call
+  local kind ip port
   local ukur=()                                               # hanya run terukur yang dicatat
   [ -n "$out" ] && ukur=(/usr/bin/time -f '%e %U %S %M' -o "$GENSTAT")
   kind=$(info "$p" '.kind'); ip=$(info "$p" '.ip'); port=$(info "$p" '.port')
 
-  if [ "$kind" = rest ]; then
-    "${ukur[@]}" taskset -c "$GEN_CPUS" k6 run --quiet loadtest/k6_rest.js \
-      -e CFG_JSON="$CFG_FILE" -e PROTO="$p" -e TARGET="https://$ip:$port" \
-      -e SIZE="$s" -e VUS="$c" -e DUR="$d" -e REP="$r" -e OUT="$out"
-  else
-    call=$(info "$p" '.call')
-    if [ -z "$out" ]; then       # warm-up: hasil dibuang
-      taskset -c "$GEN_CPUS" ghz --skipTLS --proto payload.proto --call "$call" \
-        -d "{\"size_class\":\"$s\"}" -c "$c" --connections 1 -z "$d" \
-        --duration-stop=wait --timeout "$TIMEOUT" -O json "$ip:$port" > /dev/null
-    else
-      "${ukur[@]}" taskset -c "$GEN_CPUS" ghz --skipTLS --proto payload.proto --call "$call" \
-        -d "{\"size_class\":\"$s\"}" -c "$c" --connections 1 -z "$d" \
-        --duration-stop=wait --timeout "$TIMEOUT" -O json "$ip:$port" \
-      | jq --arg p "$p" --arg s "$s" --argjson c "$c" --argjson r "$r" \
-           'del(.details, .histogram)
-            + {tool:"ghz", protocol:$p, payload_class:$s, concurrency:$c, rep:$r}' > "$out"
-    fi
-  fi
+  local target="$ip:$port"
+  [ "$kind" = rest ] && target="https://$ip:$port"
+  "${ukur[@]}" taskset -c "$GEN_CPUS" k6 run --quiet "loadtest/k6_${kind}.js" \
+    -e CFG_JSON="$CFG_FILE" -e PROTO="$p" -e TARGET="$target" \
+    -e SIZE="$s" -e VUS="$c" -e DUR="$d" -e REP="$r" -e OUT="$out"
 }
 
 siap () {    # tunggu layanan menerima koneksi (maks. 60 detik)

@@ -51,7 +51,7 @@
       "kind": "grpc",
       "ip": "172.28.0.11",
       "port": 9443,
-      "call": "payload.PayloadService.GetPayload"
+      "call": "payload.PayloadService/GetPayload"
     }
   ],
   "network": {
