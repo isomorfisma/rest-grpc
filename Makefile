@@ -1,6 +1,6 @@
 CFG      ?= config/experiment.json
 OVERRIDE ?=
-PY       ?= python3
+PY       ?= $(HOME)/venv-skripsi/bin/python3
 export CFG OVERRIDE
 
 .PHONY: help certs env proto sizes plan build up down pilot run cpu dataset analyze all

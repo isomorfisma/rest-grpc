@@ -48,7 +48,9 @@ df["protobuf_bytes"] = df.payload_class.map(sizes.protobuf_bytes)
 
 cpu_path = f"{DATA}/cpu{SUF}.csv"
 if os.path.exists(cpu_path):
-    cpu = pd.read_csv(cpu_path)[["protocol", "payload_class", "concurrency", "rep", "block", "cpu_percent"]]
+    cpu = pd.read_csv(cpu_path)
+    gen = [k for k in ("gen_cpu_pct", "gen_rss_mb") if k in cpu.columns]   # runlog lama tidak punya kolom ini
+    cpu = cpu[["protocol", "payload_class", "concurrency", "rep", "block", "cpu_percent"] + gen]
     df = df.merge(cpu, on=["protocol", "payload_class", "concurrency", "rep"], how="left")
 else:
     print(f"PERINGATAN: {cpu_path} tidak ada; kolom CPU dan block dikosongkan. "
@@ -65,3 +67,6 @@ keluaran = f"{DATA}/dataset{SUF}.csv"
 df.to_csv(keluaran, index=False)
 print(len(df), "run ·", df.combo_id.nunique(), "sel →", keluaran)
 print(df.groupby(["protocol", "concurrency"]).little_ratio.median().round(2))
+if "gen_cpu_pct" in df:
+    print("CPU pembangkit beban (maks, % dari satu vCPU):")
+    print(df.groupby(["protocol", "concurrency"]).gen_cpu_pct.max().round(0))

@@ -5,3 +5,5 @@ figures/
 docs/
 .git/
 venv/
+raw_dryrun/
+arsip/

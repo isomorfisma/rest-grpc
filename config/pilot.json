@@ -1,6 +1,24 @@
 {
-  "experiment": { "repetitions": 3, "block_size": 3 },
-  "payload_classes": [ { "name": "xs" }, { "name": "xl" } ],
-  "concurrency_levels": [10, 200],
-  "output": { "raw_dir": "raw_pilot", "runlog": "data/runlog_pilot.csv" }
+  "experiment": {
+    "repetitions": 3,
+    "block_size": 3
+  },
+  "payload_classes": [
+    {
+      "name": "xs",
+      "records": 1
+    },
+    {
+      "name": "xl",
+      "records": 3000
+    }
+  ],
+  "concurrency_levels": [
+    10,
+    500
+  ],
+  "output": {
+    "raw_dir": "raw_pilot",
+    "runlog": "data/runlog_pilot.csv"
+  }
 }

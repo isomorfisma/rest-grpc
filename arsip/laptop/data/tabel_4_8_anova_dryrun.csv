@@ -1,0 +1,10 @@
+,sum_sq,df,F,PR(>F),eta2_partial
+C(protocol),1.1146,1.0,213.5882,0.0,0.8805
+C(payload_class),190.3442,4.0,9119.1319,0.0,0.9992
+C(concurrency),74.8933,2.0,7176.0737,0.0,0.998
+C(block),0.0526,1.0,10.0814,0.0035,0.258
+C(protocol):C(payload_class),1.2143,4.0,58.1744,0.0,0.8892
+C(protocol):C(concurrency),0.0831,2.0,7.965,0.0017,0.3546
+C(payload_class):C(concurrency),1.4059,8.0,33.6779,0.0,0.9028
+C(protocol):C(payload_class):C(concurrency),0.2596,8.0,6.2174,0.0001,0.6317
+Residual,0.1513,29.0,,,

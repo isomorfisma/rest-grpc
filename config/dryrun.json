@@ -1,0 +1,13 @@
+{
+  "experiment": {
+    "repetitions": 2,
+    "block_size": 1,
+    "warmup": "5s",
+    "duration": "15s",
+    "pause_seconds": 2
+  },
+  "output": {
+    "raw_dir": "raw_dryrun",
+    "runlog": "data/runlog_dryrun.csv"
+  }
+}

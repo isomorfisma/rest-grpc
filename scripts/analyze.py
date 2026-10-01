@@ -131,6 +131,7 @@ if "2" in BAGIAN:
 
     # Bila ragam tidak homogen, laporkan juga versi robust
     aov_hc3 = sm.stats.anova_lm(model, typ=2, robust="hc3")
+    tabel(aov_hc3.round(4), "tabel_4_8_anova_hc3")
 
     # Gambar 4.3 — interaction plot, satu garis per protokol
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), constrained_layout=True)
