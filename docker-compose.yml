@@ -34,7 +34,7 @@ services:
       expnet: { ipv4_address: "${GRPC_IP}" }
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    image: ghcr.io/google/cadvisor:v0.60.5   # v0.49 tidak kompatibel dengan Docker 29 (API minimal 1.44)
     container_name: cadvisor
     cpuset: "${MONITOR_CPUSET}"
     privileged: true
