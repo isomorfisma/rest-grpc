@@ -1,0 +1,21 @@
+                           Logit Regression Results                           
+==============================================================================
+Dep. Variable:               menang_b   No. Observations:                   12
+Model:                          Logit   Df Residuals:                        8
+Method:                           MLE   Df Model:                            3
+Date:                Wed, 23 Sep 2026   Pseudo R-squ.:                   1.000
+Time:                        21:51:55   Log-Likelihood:            -2.0848e-10
+converged:                      False   LL-Null:                       -6.7480
+Covariance Type:            nonrobust   LLR p-value:                  0.003678
+==============================================================================
+                 coef    std err          z      P>|z|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept    -73.3067   2.16e+08  -3.39e-07      1.000   -4.24e+08    4.24e+08
+lp             3.7385   7.22e+07   5.18e-08      1.000   -1.42e+08    1.42e+08
+lc            60.6442   9.41e+07   6.45e-07      1.000   -1.84e+08    1.84e+08
+lp:lc         -7.7487   3.14e+07  -2.47e-07      1.000   -6.15e+07    6.15e+07
+==============================================================================
+
+Complete Separation: The results show that there iscomplete separation or perfect prediction.
+In this case the Maximum Likelihood Estimator does not exist and the parameters
+are not identified.

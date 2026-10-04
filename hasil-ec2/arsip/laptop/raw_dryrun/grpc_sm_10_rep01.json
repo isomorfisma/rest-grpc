@@ -1,0 +1,82 @@
+{
+  "date": "2026-09-24T21:45:47+07:00",
+  "endReason": "timeout",
+  "options": {
+    "call": "payload.PayloadService.GetPayload",
+    "host": "172.28.0.11:9443",
+    "proto": "payload.proto",
+    "import-paths": [
+      "."
+    ],
+    "skipTLS": true,
+    "insecure": false,
+    "load-schedule": "const",
+    "load-start": 0,
+    "load-end": 0,
+    "load-step": 0,
+    "load-step-duration": 0,
+    "load-max-duration": 0,
+    "concurrency": 10,
+    "concurrency-schedule": "const",
+    "concurrency-start": 0,
+    "concurrency-end": 0,
+    "concurrency-step": 1,
+    "concurrency-step-duration": 0,
+    "concurrency-max-duration": 0,
+    "total": 2147483647,
+    "connections": 1,
+    "duration": 15000000000,
+    "timeout": 30000000000,
+    "dial-timeout": 10000000000,
+    "data": {
+      "size_class": "sm"
+    },
+    "binary": false,
+    "CPUs": 2
+  },
+  "count": 30086,
+  "total": 15004302834,
+  "average": 4689694,
+  "fastest": 2750814,
+  "slowest": 37702071,
+  "rps": 2005.158142491274,
+  "errorDistribution": {},
+  "statusCodeDistribution": {
+    "OK": 30086
+  },
+  "latencyDistribution": [
+    {
+      "percentage": 10,
+      "latency": 3119320
+    },
+    {
+      "percentage": 25,
+      "latency": 3607848
+    },
+    {
+      "percentage": 50,
+      "latency": 4327570
+    },
+    {
+      "percentage": 75,
+      "latency": 5273147
+    },
+    {
+      "percentage": 90,
+      "latency": 6538006
+    },
+    {
+      "percentage": 95,
+      "latency": 7722752
+    },
+    {
+      "percentage": 99,
+      "latency": 10407448
+    }
+  ],
+  "tool": "ghz",
+  "protocol": "grpc",
+  "payload_class": "sm",
+  "concurrency": 10,
+  "rep": 1
+}

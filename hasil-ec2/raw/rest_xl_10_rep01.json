@@ -1,0 +1,16 @@
+{
+  "tool": "k6",
+  "protocol": "rest",
+  "payload_class": "xl",
+  "concurrency": 10,
+  "rep": 1,
+  "p50_ms": 57.692553,
+  "p95_ms": 68.2631118,
+  "p99_ms": 69.78820712000001,
+  "mean_ms": 57.48728640363,
+  "max_ms": 110.184719,
+  "requests": 10413,
+  "rps": 173.39003780111665,
+  "error_rate": 0,
+  "checks_ok": 1
+}
