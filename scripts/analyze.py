@@ -4,8 +4,8 @@
 Lima bagian, dijalankan berurutan karena saling bergantung:
   1. Deskriptif dan heatmap        → Tabel 4.7, Gambar 4.2, Gambar 4.4
   2. ANOVA dan uji asumsi          → Tabel 4.8, Gambar 4.3
-  3. Pemenang per sel + logistik   → Tabel 4.9, Tabel 4.10, Gambar 4.5
-  4. Metrik pada beban tertinggi   → Tabel 4.11, Gambar 4.6
+  3. Pemenang per sel + crossover  → Tabel 4.9, Tabel 4.10, Gambar 4.5
+  4. Metrik pada beban tertinggi   → Tabel 4.11, Gambar 4.6, Tabel 4.14 (ekor), Tabel 4.15 (generator)
   5. Random Forest                 → Tabel 4.12, Tabel 4.13, Gambar 4.7, Gambar 4.8
 
 Menjalankan sebagian: python3 scripts/analyze.py 4 5   (bagian 5 membutuhkan bagian 2)
@@ -15,13 +15,13 @@ import os
 import sys
 
 import matplotlib
+import matplotlib.ticker
 import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")                       # harus sebelum import pyplot
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-import statsmodels.formula.api as smf
 from scipy import stats
 from scipy.stats import ttest_ind
 from sklearn.ensemble import RandomForestRegressor
@@ -41,6 +41,8 @@ os.makedirs(FIG, exist_ok=True)
 KELAS, CONC, PROTO = cfg.classes(c), c["concurrency_levels"], cfg.protocols(c)
 BAGIAN = set(sys.argv[1:]) or {"1", "2", "3", "4", "5"}
 GAYA = ["o-", "s--", "^:", "d-."]           # pembeda garis antar protokol
+LABEL = {"rest": "REST", "grpc": "gRPC"}    # penulisan nama protokol pada gambar
+nama = lambda p: LABEL.get(p, p.upper())
 
 df = pd.read_csv(f"{DATA}/dataset{SUF}.csv")
 df["log_p50"] = np.log(df.p50_ms)
@@ -74,7 +76,7 @@ if "1" in BAGIAN:
     for ax, p in zip(axes[0], PROTO):
         grid = med[p].unstack().loc[KELAS, CONC]
         im = ax.imshow(np.log10(grid.values), cmap="viridis")
-        ax.set_title(p.upper())
+        ax.set_title(nama(p))
         ax.set_xticks(range(len(CONC)), CONC)
         ax.set_yticks(range(len(KELAS)), KELAS)
         ax.set_xlabel("Concurrency (VU)")
@@ -100,7 +102,7 @@ if "1" in BAGIAN:
         for i in range(len(KELAS)):
             for k in range(len(CONC)):
                 ax.text(k, i, f"{rasio.values[i, k]:.2f}×", ha="center", va="center", fontsize=9)
-        fig.colorbar(im, label=f"log2({A} / {B}) · biru = {B} lebih cepat")
+        fig.colorbar(im, label=f"log2({nama(A)} / {nama(B)}) · biru = {nama(B)} lebih cepat")
         simpan(fig, "gambar_4_4_rasio")
 
 # ============================ 2. ANOVA dan uji asumsi =========================
@@ -137,9 +139,9 @@ if "2" in BAGIAN:
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), constrained_layout=True)
     for p, mk in zip(PROTO, GAYA):
         sub = df[df.protocol == p]
-        axes[0].plot(KELAS, sub.groupby("payload_class").log_p50.mean().loc[KELAS], mk, label=p.upper())
+        axes[0].plot(KELAS, sub.groupby("payload_class").log_p50.mean().loc[KELAS], mk, label=nama(p))
         axes[1].plot([str(x) for x in CONC], sub.groupby("concurrency").log_p50.mean().loc[CONC],
-                     mk, label=p.upper())
+                     mk, label=nama(p))
     axes[0].set_xlabel("Kelas payload")
     axes[1].set_xlabel("Concurrency (VU)")
     for a in axes:
@@ -147,7 +149,7 @@ if "2" in BAGIAN:
         a.legend()
     simpan(fig, "gambar_4_3_interaksi")
 
-# =================== 3. Pemenang per sel dan regresi logistik =================
+# =================== 3. Pemenang per sel dan lokasi crossover ==================
 if "3" in BAGIAN and len(PROTO) == 2:
     print("\n[3] Pemenang per sel dan crossover")
     A, B = PROTO
@@ -166,39 +168,95 @@ if "3" in BAGIAN and len(PROTO) == 2:
     tabel(sel, "tabel_4_9_pemenang", index=False)
     print(sel.to_string(index=False))
 
-    # Tabel 4.10 — regresi logistik pada pasangan run bernomor repetisi sama
+    # Tabel 4.10 — lokasi crossover dari rasio p50 berpasangan.
+    # Regresi logistik (rencana awal) tidak dapat difit bila hasil terpisah sempurna: setiap pasangan
+    # di bawah suatu ukuran dimenangkan A dan di atasnya dimenangkan B, sehingga koefisiennya tak hingga.
+    # Model regresi kontinu pada rasio juga tidak dipakai karena bentuk fungsinya sendiri yang
+    # menentukan titik potong. Yang dilaporkan: (1) rentang yang pasti dari data, yaitu dua kelas
+    # bertetangga tempat pemenang berganti, dan (2) estimasi titik crossover dengan interpolasi
+    # linear log-rasio terhadap log ukuran payload di antara kedua kelas, beserta interval
+    # kepercayaan 95% dari bootstrap repetisi.
     pasang = df.pivot_table(index=["payload_class", "payload_bytes", "concurrency", "rep"],
                             columns="protocol", values="p50_ms").reset_index()
-    pasang["menang_b"] = (pasang[B] < pasang[A]).astype(int)
+    pasang["log_rasio"] = np.log(pasang[A] / pasang[B])         # > 0 → B lebih cepat
+    pasang["menang_b"] = (pasang.log_rasio > 0).astype(int)
+    rng = np.random.default_rng(c["experiment"]["seed"])
+
+    def potong(lb1, y1, lb2, y2):                               # titik y = 0 pada sumbu log10(byte)
+        return lb1 + (0 - y1) / (y2 - y1) * (lb2 - lb1)
+
+    hasil, kurva = [], []
+    for cc, g in pasang.groupby("concurrency"):
+        sel_c = g.groupby("payload_bytes").log_rasio
+        rata = sel_c.mean().sort_index()
+        sampel = {b: v.values for b, v in sel_c}
+        for b, m in rata.items():
+            ci = np.percentile([rng.choice(sampel[b], len(sampel[b])).mean() for _ in range(2000)], [2.5, 97.5])
+            kurva.append((cc, b, m, *ci, g[g.payload_bytes == b].menang_b.mean()))
+        bs = rata.index.values
+        for b1, b2 in zip(bs[:-1], bs[1:]):
+            if np.sign(rata[b1]) == np.sign(rata[b2]):
+                continue
+            lb1, lb2 = np.log10(b1), np.log10(b2)
+            titik = potong(lb1, rata[b1], lb2, rata[b2])
+            boot = [potong(lb1, rng.choice(sampel[b1], len(sampel[b1])).mean(),
+                           lb2, rng.choice(sampel[b2], len(sampel[b2])).mean()) for _ in range(2000)]
+            lo, hi = np.percentile(boot, [2.5, 97.5])
+            hasil.append({"concurrency": cc, "kelas_bawah_byte": int(b1), "kelas_atas_byte": int(b2),
+                          "pemenang_bawah": A if rata[b1] < 0 else B, "pemenang_atas": A if rata[b2] < 0 else B,
+                          "crossover_kb": round(10 ** titik / 1000, 1),
+                          "ci95_bawah_kb": round(10 ** lo / 1000, 1), "ci95_atas_kb": round(10 ** hi / 1000, 1)})
+    silang = pd.DataFrame(hasil)
+    if silang.empty:
+        print("  Tidak ada perubahan pemenang di rentang uji: tidak ada crossover.")
+    else:
+        tabel(silang, "tabel_4_10_crossover", index=False)
+        print(silang.to_string(index=False))
+    # Regresi logistik sesuai persamaan (2.3)–(2.4). Bila data terpisah sempurna, estimasi
+    # maximum likelihood tidak ada (koefisien membesar tanpa batas) dan interpolasi di atas dipakai.
     pasang["lp"] = np.log10(pasang.payload_bytes)
     pasang["lc"] = np.log10(pasang.concurrency)
-
+    import warnings
+    import statsmodels.formula.api as smf
     try:
-        logit = smf.logit("menang_b ~ lp * lc", data=pasang).fit(disp=False)
-        print(logit.summary())
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")                      # peringatan separasi diperlakukan sebagai gagal
+            logit = smf.logit("menang_b ~ lp * lc", data=pasang).fit(disp=False, maxiter=200)
+        if not logit.mle_retvals.get("converged", False) or np.abs(logit.params).max() > 100:
+            raise ValueError("tidak konvergen / koefisien tak terbatas")
         with open(f"{DATA}/tabel_4_10_logit{SUF}.txt", "w") as f:
             f.write(str(logit.summary()))
-
-        # Gambar 4.5 — peta probabilitas dan decision boundary (P = 0,5)
-        lo_p, hi_p = np.log10(df.payload_bytes.min()) - .2, np.log10(df.payload_bytes.max()) + .2
-        lo_c, hi_c = np.log10(min(CONC)), np.log10(max(CONC))
-        LP, LC = np.meshgrid(np.linspace(lo_p, hi_p, 200), np.linspace(lo_c, hi_c, 200))
-        prob = logit.predict(pd.DataFrame({"lp": LP.ravel(), "lc": LC.ravel()})).values.reshape(LP.shape)
-
-        fig, ax = plt.subplots(figsize=(6, 4.2), constrained_layout=True)
-        cs = ax.contourf(10**LP, 10**LC, prob, levels=np.linspace(0, 1, 11), cmap="RdBu")
-        ax.contour(10**LP, 10**LC, prob, levels=[0.5], colors="k", linewidths=2)
-        titik = pasang.groupby(["payload_bytes", "concurrency"]).menang_b.mean().reset_index()
-        ax.scatter(titik.payload_bytes, titik.concurrency, c=titik.menang_b, cmap="RdBu",
-                   vmin=0, vmax=1, edgecolor="k", s=70)
-        ax.set_xscale("log"); ax.set_yscale("log")
-        ax.set_xlabel("Ukuran payload (byte)"); ax.set_ylabel("Concurrency (VU)")
-        fig.colorbar(cs, label=f"P({B} lebih cepat)")
-        simpan(fig, "gambar_4_5_boundary")
+        b0, b1, b2, b3 = (logit.params[k] for k in ["Intercept", "lp", "lc", "lp:lc"])
+        batas = pd.DataFrame([{"concurrency": cc,
+                               "batas_logit_kb": round(10 ** (-(b0 + b2 * np.log10(cc)) / (b1 + b3 * np.log10(cc))) / 1000, 1)}
+                              for cc in CONC])
+        tabel(batas, "tabel_4_10b_batas_logit", index=False)
+        print(logit.summary2().tables[1].round(3).to_string())
+        print(batas.to_string(index=False))
     except Exception as e:
-        print(f"  Regresi logistik tidak dapat difit: {type(e).__name__}: {e}", file=sys.stderr)
-        print("  Data kemungkinan terpisah sempurna (satu protokol menang di semua pasangan). "
-              "Pakai Tabel 4.9 sebagai bukti crossover, atau logit.fit_regularized().", file=sys.stderr)
+        print(f"  Regresi logistik tidak dapat difit ({type(e).__name__}): data terpisah sempurna, "
+              "lokasi crossover memakai interpolasi pada Tabel 4.10.")
+
+    # Gambar 4.5 — rasio p50 A/B terhadap ukuran payload, satu garis per level concurrency
+    k = pd.DataFrame(kurva, columns=["concurrency", "payload_bytes", "m", "lo", "hi", "frac_b"])
+    fig, ax = plt.subplots(figsize=(6.4, 4.2), constrained_layout=True)
+    for (cc, g), mk in zip(k.groupby("concurrency"), GAYA):
+        ax.errorbar(g.payload_bytes, np.exp(g.m), yerr=[np.exp(g.m) - np.exp(g.lo), np.exp(g.hi) - np.exp(g.m)],
+                    fmt=mk, capsize=3, label=f"{cc} VU")
+    for _, r in silang.iterrows():
+        ax.errorbar(r.crossover_kb * 1000, 1, xerr=[[r.crossover_kb * 1000 - r.ci95_bawah_kb * 1000],
+                                                    [r.ci95_atas_kb * 1000 - r.crossover_kb * 1000]],
+                    fmt="kx", capsize=4, ms=7)
+    ax.axhline(1, color="k", lw=.8)
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2g"))
+    ax.yaxis.set_minor_formatter(matplotlib.ticker.FormatStrFormatter("%.2g"))
+    ax.set_xlabel("Ukuran payload JSON (byte)")
+    ax.set_ylabel(f"Rasio p50 {nama(A)} / {nama(B)}")
+    ax.text(.02, .97, f"di atas 1: {nama(B)} lebih cepat", transform=ax.transAxes, va="top", fontsize=8)
+    ax.text(.02, .03, f"di bawah 1: {nama(A)} lebih cepat", transform=ax.transAxes, va="bottom", fontsize=8)
+    ax.legend(title="Concurrency")
+    simpan(fig, "gambar_4_5_crossover")
 
 # ================= 4. Metrik pada level concurrency tertinggi =================
 if "4" in BAGIAN:
@@ -212,14 +270,30 @@ if "4" in BAGIAN:
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), constrained_layout=True)
     for p, mk in zip(PROTO, GAYA):
         g = top[top.protocol == p].groupby("payload_class")
-        axes[0].plot(KELAS, g.cpu_percent.mean().loc[KELAS], mk, label=p.upper())
-        axes[1].plot(KELAS, g.p99_ms.mean().loc[KELAS], mk, label=p.upper())
+        axes[0].plot(KELAS, g.cpu_percent.mean().loc[KELAS], mk, label=nama(p))
+        axes[1].plot(KELAS, g.p99_ms.mean().loc[KELAS], mk, label=nama(p))
     axes[0].set_ylabel("CPU (% satu core)")
     axes[1].set_ylabel("p99 (ms)"); axes[1].set_yscale("log")
     for a in axes:
         a.set_xlabel("Kelas payload"); a.legend()
     fig.suptitle(f"Concurrency {cmax} VU")
     simpan(fig, "gambar_4_6_concurrency_max")
+
+    # Tabel 4.14 — ekor dan kestabilan per sel: rasio p99/p50 dan koefisien variasi p50 antar-repetisi
+    ekor = df.groupby(["payload_class", "concurrency", "protocol"]).agg(
+        p50_ms=("p50_ms", "median"), p95_ms=("p95_ms", "median"), p99_ms=("p99_ms", "median"),
+        cv_p50=("p50_ms", lambda v: v.std() / v.mean()))
+    ekor["p99_per_p50"] = ekor.p99_ms / ekor.p50_ms
+    tabel(ekor.unstack("protocol").reindex(KELAS, level=0).round(3), "tabel_4_14_ekor_variabilitas")
+
+    # Tabel 4.15 — beban pembangkit beban (k6): bukti generator bukan bottleneck
+    if "gen_cpu_pct" in df:
+        gen = df.groupby(["protocol", "payload_class", "concurrency"]).agg(
+            gen_cpu_rata=("gen_cpu_pct", "mean"), gen_cpu_maks=("gen_cpu_pct", "max"),
+            gen_rss_maks_mb=("gen_rss_mb", "max"), little_ratio=("little_ratio", "mean"))
+        tabel(gen.unstack("protocol").reindex(KELAS, level=0).round(2), "tabel_4_15_generator")
+        print(f"  CPU k6 maksimum: {df.gen_cpu_pct.max():.0f}% · little_ratio "
+              f"{df.little_ratio.min():.2f}–{df.little_ratio.max():.2f}")
 
 # ============================ 5. Random Forest ================================
 if "5" in BAGIAN:
@@ -248,7 +322,7 @@ if "5" in BAGIAN:
     fig, ax = plt.subplots(figsize=(4.8, 4.5), constrained_layout=True)
     for p in PROTO:
         m = (df.protocol == p).values
-        ax.scatter(aktual_ms[m], pred_ms[m], s=12, alpha=.6, label=p.upper())
+        ax.scatter(aktual_ms[m], pred_ms[m], s=12, alpha=.6, label=nama(p))
     lo, hi = aktual_ms.min(), aktual_ms.max()
     ax.plot([lo, hi], [lo, hi], "k--", lw=1)
     ax.set_xscale("log"); ax.set_yscale("log")

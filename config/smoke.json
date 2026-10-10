@@ -1,0 +1,10 @@
+{
+  "experiment": { "repetitions": 1, "block_size": 1, "warmup": "5s", "duration": "15s", "pause_seconds": 2 },
+  "payload_classes": [
+    { "name": "s75", "records": 75 },
+    { "name": "s125", "records": 125 },
+    { "name": "s250", "records": 250 }
+  ],
+  "concurrency_levels": [10, 500],
+  "output": { "raw_dir": "raw_smoke", "runlog": "data/runlog_smoke.csv" }
+}

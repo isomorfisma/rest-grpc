@@ -21,6 +21,18 @@
       "records": 50
     },
     {
+      "name": "s75",
+      "records": 75
+    },
+    {
+      "name": "s125",
+      "records": 125
+    },
+    {
+      "name": "s250",
+      "records": 250
+    },
+    {
       "name": "md",
       "records": 500
     },
