@@ -1,0 +1,10 @@
+,sum_sq,df,F,PR(>F)
+C(protocol),55.5491,1.0,7909.3479,0.0
+C(payload_class),22164.6266,7.0,450843.9241,0.0
+C(concurrency),31278.5061,2.0,2226793.0082,0.0
+C(block),0.2543,2.0,18.104,0.0
+C(protocol):C(payload_class),180.2242,7.0,3665.8847,0.0
+C(protocol):C(concurrency),3.0448,2.0,216.7681,0.0
+C(payload_class):C(concurrency),1266.5273,14.0,12881.0231,0.0
+C(protocol):C(payload_class):C(concurrency),8.0992,14.0,82.3719,0.0
+Residual,4.7056,670.0,,

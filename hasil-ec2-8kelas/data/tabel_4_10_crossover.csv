@@ -1,0 +1,4 @@
+concurrency,kelas_bawah_byte,kelas_atas_byte,pemenang_bawah,pemenang_atas,crossover_kb,ci95_bawah_kb,ci95_atas_kb
+10,75074,125243,rest,grpc,91.3,90.7,92.0
+100,75074,125243,rest,grpc,78.8,72.9,83.8
+500,75074,125243,rest,grpc,94.6,92.5,96.8

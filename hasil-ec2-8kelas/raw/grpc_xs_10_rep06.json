@@ -1,0 +1,16 @@
+{
+  "tool": "k6",
+  "protocol": "grpc",
+  "payload_class": "xs",
+  "concurrency": 10,
+  "rep": 6,
+  "p50_ms": 2.368807,
+  "p95_ms": 2.8356047999999996,
+  "p99_ms": 3.0394547999999992,
+  "mean_ms": 2.4126787442973154,
+  "max_ms": 5.303509,
+  "requests": 240193,
+  "rps": 4003.177098396871,
+  "error_rate": 0,
+  "checks_ok": 1
+}
