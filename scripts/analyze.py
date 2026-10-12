@@ -12,6 +12,7 @@ Menjalankan sebagian: python3 scripts/analyze.py 4 5   (bagian 5 membutuhkan bag
 Data pilot          : OVERRIDE=config/pilot.json python3 scripts/analyze.py
 """
 import os
+import pickle
 import sys
 
 import matplotlib
@@ -24,14 +25,12 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from scipy import stats
 from scipy.stats import ttest_ind
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error, r2_score
-from sklearn.model_selection import LeaveOneGroupOut
 from statsmodels.formula.api import ols
 from statsmodels.stats.multitest import multipletests
 
 sys.path.insert(0, "scripts")
 import cfg
+import rf_manual as rfm                     # Random Forest implementasi sendiri (tanpa scikit-learn)
 
 # ---------------------------------------------------------------- setup bersama
 c = cfg.load()
@@ -40,6 +39,7 @@ DATA, FIG = c["output"]["data_dir"], c["output"]["figures_dir"]
 os.makedirs(FIG, exist_ok=True)
 KELAS, CONC, PROTO = cfg.classes(c), c["concurrency_levels"], cfg.protocols(c)
 BAGIAN = set(sys.argv[1:]) or {"1", "2", "3", "4", "5"}
+RF_MAKS_FITUR = 2                           # fitur acak per simpul (dari 3 fitur)
 GAYA = ["o-", "s--", "^:", "d-."]           # pembeda garis antar protokol
 LABEL = {"rest": "REST", "grpc": "gRPC"}    # penulisan nama protokol pada gambar
 nama = lambda p: LABEL.get(p, p.upper())
@@ -297,23 +297,23 @@ if "4" in BAGIAN:
 
 # ============================ 5. Random Forest ================================
 if "5" in BAGIAN:
-    print("\n[5] Random Forest dengan leave-one-group-out")
+    print("\n[5] Random Forest (implementasi manual) dengan leave-one-group-out")
     FITUR = ["protocol_code", "payload_bytes", "concurrency"]
-    X, y, grup = df[FITUR], df.log_p50, df.combo_id
+    X, y, grup = df[FITUR].to_numpy(float), df.log_p50.to_numpy(), df.combo_id.to_numpy()
 
     def rf():
-        return RandomForestRegressor(n_estimators=300, max_depth=6, min_samples_leaf=3,
-                                     random_state=42, n_jobs=1)      # n_jobs=1: hemat RAM
+        return rfm.RandomForestManual(n_pohon=300, kedalaman_maks=6, min_daun=3,
+                                      maks_fitur=RF_MAKS_FITUR, seed=42)
 
-    pred = pd.Series(np.nan, index=df.index)
-    for latih, uji in LeaveOneGroupOut().split(X, y, grup):           # satu sel ditahan per lipatan
-        pred.iloc[uji] = rf().fit(X.iloc[latih], y.iloc[latih]).predict(X.iloc[uji])
+    pred = np.full(len(y), np.nan)
+    for latih, uji in rfm.leave_one_group_out(grup):                  # satu sel ditahan per lipatan
+        pred[uji] = rf().fit(X[latih], y[latih]).predict(X[uji])
 
     aktual_ms, pred_ms = np.exp(y), np.exp(pred)
     akurasi = pd.Series({
-        "R2_log": round(r2_score(y, pred), 3),
-        "RMSE_ms": round(mean_squared_error(aktual_ms, pred_ms) ** 0.5, 1),
-        "MAPE": round(mean_absolute_percentage_error(aktual_ms, pred_ms), 3),
+        "R2_log": round(rfm.r2(y, pred), 3),
+        "RMSE_ms": round(rfm.rmse(aktual_ms, pred_ms), 1),
+        "MAPE": round(rfm.mape(aktual_ms, pred_ms), 3),
     })
     tabel(akurasi, "tabel_4_12_akurasi_rf")
     print(akurasi.to_string())
@@ -332,6 +332,11 @@ if "5" in BAGIAN:
 
     # Gambar 4.8 — feature importance dibanding eta-squared (butuh bagian 2)
     akhir = rf().fit(X, y)
+    with open(f"{DATA}/model_rf{SUF}.pkl", "wb") as f:                # dipakai scripts/prediksi.py
+        pickle.dump({"model": akhir, "fitur": FITUR, "protokol": PROTO,
+                     "rentang_byte": (float(X[:, 1].min()), float(X[:, 1].max())),
+                     "rentang_conc": (float(X[:, 2].min()), float(X[:, 2].max()))}, f)
+    print("  model  →", f"{DATA}/model_rf{SUF}.pkl")
     penting = pd.Series(akhir.feature_importances_, index=FITUR)
     if "aov" in globals():
         eta = aov.eta2_partial.reindex(["C(protocol)", "C(payload_class)", "C(concurrency)"]).values
@@ -355,7 +360,7 @@ if "5" in BAGIAN:
     baru = pd.DataFrame([(i, b, cc) for i in range(len(PROTO)) for b in tengah_b for cc in tengah_c],
                         columns=FITUR)
     baru["protocol"] = [PROTO[i] for i in baru.protocol_code]
-    baru["estimasi_p50_ms"] = np.exp(akhir.predict(baru[FITUR])).round(1)
+    baru["estimasi_p50_ms"] = np.exp(akhir.predict(baru[FITUR].to_numpy(float))).round(1)
     tabel(baru, "tabel_4_13_estimasi", index=False)
     print(baru.to_string(index=False))
 

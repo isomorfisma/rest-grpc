@@ -1,0 +1,3 @@
+implementasi,R2_log,RMSE_ms,MAPE,imp_protokol,imp_payload,imp_concurrency
+manual,0.964,243.407,0.295,0.013,0.459,0.528
+scikit-learn,0.965,242.229,0.266,0.012,0.458,0.529
